@@ -18,6 +18,10 @@ class WeatherCog(commands.Cog):
 
     @commands.command(name="погода")
     async def weather(self, ctx, *, city: str):
+        """Показывает погоду в указанном городе"""
+        if not self.api_key:
+            return await ctx.send("❌ API-ключ для погоды не настроен!")
+
         base_url = "https://api.openweathermap.org/data/2.5/weather"
         params = {
             "q": city,
@@ -31,38 +35,39 @@ class WeatherCog(commands.Cog):
                 async with session.get(base_url, params=params) as response:
                     data = await response.json()
 
-                    if data["cod"] != 200:
-                        return await ctx.send("🚫 Город не найден или ошибка API")
+                    if data.get("cod") != 200:
+                        return await ctx.send(f"🚫 Город {city} не найден!")
 
-                   
+                    # Извлекаем данные
                     main = data["main"]
                     weather = data["weather"][0]
                     wind = data["wind"]
                     sys = data["sys"]
 
-                
+                    # Получаем иконку
                     weather_type = weather["main"].lower()
-                    icon_data = self.weather_icons.get(weather_type, "🌤️")
-                    icon, status = icon_data.split() if " " in icon_data else ("🌤️", "Нормально")
+                    icon_data = self.weather_icons.get(weather_type, "🌤️ Пасмурно")
+                    icon, status = icon_data.split() if " " in icon_data else ("🌤️", "Пасмурно")
 
-                   
+                    # Создаем Embed
                     embed = discord.Embed(
                         title=f"{icon} Погода в {data['name']}, {sys['country']}",
-                        color=0x00ff00 if "ясно" in status.lower() else 0x7289DA
+                        color=0x00ff00
                     )
-                    
-                    embed.add_field(name="🌡 Температура", value=f"{main['temp']}°C", inline=True)
-                    embed.add_field(name="💨 Ощущается как", value=f"{main['feels_like']}°C", inline=True)
-                    embed.add_field(name="💧 Влажность", value=f"{main['humidity']}%", inline=True)
-                    embed.add_field(name="🌬 Ветер", value=f"{wind['speed']} м/с", inline=True)
-                    embed.add_field(name="📝 Состояние", value=weather["description"].capitalize(), inline=True)
+                    embed.add_field(name="🌡 Температура", value=f"{main['temp']}°C")
+                    embed.add_field(name="💨 Ощущается как", value=f"{main['feels_like']}°C")
+                    embed.add_field(name="💧 Влажность", value=f"{main['humidity']}%")
+                    embed.add_field(name="🌬 Ветер", value=f"{wind['speed']} м/с")
+                    embed.add_field(name="📝 Состояние", value=weather["description"].capitalize())
                     embed.set_thumbnail(url=f"http://openweathermap.org/img/wn/{weather['icon']}@2x.png")
                     embed.set_footer(text="Данные предоставлены OpenWeatherMap")
 
                     await ctx.send(embed=embed)
 
+        except aiohttp.ClientConnectionError:
+            await ctx.send("⚠️ Нет подключения к интернету!")
         except Exception as e:
-            await ctx.send(f"⚠️ Ошибка: {str(e)}")
+            await ctx.send(f"❌ Произошла ошибка: {str(e)}")
 
 async def setup(bot):
     await bot.add_cog(WeatherCog(bot))
